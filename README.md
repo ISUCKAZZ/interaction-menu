@@ -4,5 +4,6 @@ V1 ![ezgif com-animated-gif-maker (1)](https://github.com/ISA420-1/interaction-m
 
 can also find it at https://steamcommunity.com/sharedfiles/filedetails/?id=3238581651
 V2 
-![image](https://github.com/ISA420-1/interaction-menu/assets/168322041/2c6083f1-5398-4004-856c-2669fbdcb054)
+![image]![Screenshot 2024-10-26 235526](https://github.com/user-attachments/assets/5cd6ff40-6f95-45d9-8005-13681116660f)
+
 
