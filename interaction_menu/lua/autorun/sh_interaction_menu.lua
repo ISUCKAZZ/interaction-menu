@@ -66,11 +66,11 @@ local function CreateInteractionMenu(targetPlayer)
     frame:SetPos(-1000, -1000)
     frame.Paint = function(self, w, h)
         local rank = targetPlayer:GetUserGroup()
-    
+   =
         local rainbowColors = {
             vip = Color(255, 0, 0),
             ["vip+"] = Color(0, 255, 0),
-            mod = Color(0, 0, 255),
+            mod = Color(0, 0, 255), 
             superadmin = Color(255, 0, 255) -- S-Admin gets a different color
         }
     
@@ -166,9 +166,9 @@ local function CreateInteractionMenu(targetPlayer)
         mugMenu.Paint = function(self, w, h)
             draw.RoundedBox(8, 0, 0, w, h, Color(0, 0, 0, 150))
         end
-
+        --MUGAMOUNT CHANGE IT IF YOU WOULD LIKE--
         local mugAmounts = {10000, 25000, 50000, 75000, 100000}
-
+        
         for i, amount in ipairs(mugAmounts) do
             local mugButton = vgui.Create("DButton", mugMenu)
             mugButton:SetText("Mug $" .. string.format("%d", amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
@@ -194,9 +194,9 @@ local function CreateInteractionMenu(targetPlayer)
         if IsValid(targetPlayer) and IsValid(frame) then
             local headPos = GetHeadBonePosition(targetPlayer)
             local pos = headPos:ToScreen()
-
-            local offsetX = -340  -- Adjusted offsetX for moving the menu more to the right
-            local offsetY = 45
+        
+            local offsetX = -340  -- Adjusted menu left or right by removeing the -
+            local offsetY = 45    -- up or down --
 
             frame:SetPos(pos.x + offsetX, pos.y + offsetY)
 
@@ -259,8 +259,8 @@ if CLIENT then
 
     hook.Add("KeyPress", "OpenInteractionMenu", function(ply, key)
         if key == IN_USE and not InteractionMenuOpen then
-            -- Define the maximum distance for opening the menu
-            local maxDistance = 75
+            
+            local maxDistance = 75 -- Define the maximum distance for opening the menu --
             for _, ent in ipairs(ents.FindInSphere(ply:GetPos(), maxDistance)) do
                 if IsValid(ent) and ent:IsPlayer() and ent ~= ply and ent:Alive() then
                     if IsPlayerInRangeAndLookingAt(ply, ent) then
