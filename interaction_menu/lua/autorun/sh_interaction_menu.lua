@@ -1,285 +1,269 @@
 if SERVER then
-    MsgC(Color(52, 152, 219), "-------------------------------------------------------------------------------\n")
-    MsgC(Color(52, 152, 219), "          ISA is the man frfr PooStuffa.Dev | ", color_white, "Initializing server files.\n")
-    MsgC(Color(52, 152, 219), "-------------------------------------------------------------------------------\n")
-    MsgC(Color(255, 0, 0), "ISA has been here\n")
-    for percent = 1, 100 do
-        timer.Simple(20.0 * percent, function()
-            MsgC(Color(255, 215, 0), "[BitcoinMiner] ", Color(255, 255, 255), "Mining Bitcoin... " .. percent .. "% complete.\n")
-        end)
-    end
-end
+    util.AddNetworkString("MugNotification")
+    util.AddNetworkString("WarnNotification")
 
-local function DrawRainbowText(text, font, x, y, alignment)
-    surface.SetFont(font)
-    local width, _ = surface.GetTextSize(text)
+    local mugCooldowns = {}
+    local MAX_MUG_AMOUNT = 15000
+    local DEFAULT_MUG_COOLDOWN = 300 -- Default mug cooldown in seconds
 
-    local startHue = CurTime() * 50
-    local endHue = startHue + 360
-
-    local startColor = HSVToColor(startHue % 360, 1, 1)
-    local endColor = HSVToColor(endHue % 360, 1, 1)
-
-    for i = 1, string.len(text) do
-        local char = string.sub(text, i, i)
-        local lerpFactor = i / (string.len(text) + 1)
-        local lerpedColor = Color(
-            Lerp(lerpFactor, startColor.r, endColor.r),
-            Lerp(lerpFactor, startColor.g, endColor.g),
-            Lerp(lerpFactor, startColor.b, endColor.b)
-        )
-        draw.SimpleText(char, font, x + (i - 1) * (width / string.len(text)), y, lerpedColor, alignment)
-    end
-end
-
-local function GetPlayerMoney(ply)
-    if DarkRP then
-        return ply:getDarkRPVar("money")
-    else
-        return 0
-    end
-end
-
-local function GetHeadBonePosition(targetPlayer)
-    local headBone = targetPlayer:LookupBone("ValveBiped.Bip01_Head")
-    if headBone then
-        return targetPlayer:GetBonePosition(headBone)
-    else
-        return targetPlayer:EyePos()
-    end
-end
-
-local function CreateInteractionMenu(targetPlayer)
-    if IsValid(InteractionMenu) then
-        InteractionMenu:Remove()
+    local function CanMug(target)
+        return not mugCooldowns[target] or CurTime() > mugCooldowns[target]
     end
 
-    gui.EnableScreenClicker(true)
+    local function SetMugCooldown(target, cooldown)
+        mugCooldowns[target] = CurTime() + (cooldown or DEFAULT_MUG_COOLDOWN)
+    end
 
-    local frame = vgui.Create("DFrame")
-    frame:SetSize(180, 200)
-    frame:SetTitle("")
-    frame:ShowCloseButton(false)
-    frame:SetDraggable(false)
-    frame:SetMinWidth(220)
-    frame:SetMinHeight(220)
-    frame:SetPos(-1000, -1000)
-    frame.Paint = function(self, w, h)
-        local rank = targetPlayer:GetUserGroup()
-   =
-        local rainbowColors = {
-            vip = Color(255, 0, 0),
-            ["vip+"] = Color(0, 255, 0),
-            mod = Color(0, 0, 255), 
-            superadmin = Color(255, 0, 255) -- S-Admin gets a different color
-        }
-    
-        if rainbowColors[rank] then
-            local rankText = rank == "superadmin" and "S-Admin" or rank
-            local x = (rank == "vip" or rank == "vip+" or rank == "mod") and w / 2 - surface.GetTextSize(rankText) / 2 or w / 2 - surface.GetTextSize(rankText) / 2 - 15
-            DrawRainbowText(rankText, "DermaLarge", x, 5, TEXT_ALIGN_CENTER, rainbowColors[rank])
+    net.Receive("WarnNotification", function(len, ply)
+        local target = net.ReadEntity()
+
+        if IsValid(target) and target:IsPlayer() then
+            target:SendLua("notification.AddLegacy('" .. ply:Nick() .. " is warning you about a mugging!', NOTIFY_HINT, 5)")
+        end
+    end)
+
+    net.Receive("MugNotification", function(len, ply)
+        local target = net.ReadEntity()
+        local amount = net.ReadInt(32)
+        local cooldown = net.ReadInt(32) -- Custom cooldown
+
+        if IsValid(target) and target:IsPlayer() and CanMug(target) then
+            if amount > MAX_MUG_AMOUNT then
+                ply:SendLua("notification.AddLegacy('You cannot mug more than $" .. MAX_MUG_AMOUNT .. ".', NOTIFY_ERROR, 5)")
+                return
+            end
+
+            if target:canAfford(amount) then
+                target:addMoney(-amount)
+                ply:addMoney(amount)
+                SetMugCooldown(target, cooldown)
+
+                target:SendLua("notification.AddLegacy('You were mugged by " .. ply:Nick() .. " for $" .. amount .. "!', NOTIFY_ERROR, 5)")
+                ply:SendLua("notification.AddLegacy('You successfully mugged " .. target:Nick() .. " for $" .. amount .. "!', NOTIFY_GENERIC, 5)")
+            else
+                ply:SendLua("notification.AddLegacy('" .. target:Nick() .. " cannot afford to pay your mugging demand.', NOTIFY_ERROR, 5)")
+            end
         else
-            draw.SimpleText(targetPlayer:GetUserGroup(), "DermaLarge", w / 2, 5, Color(255, 255, 255), TEXT_ALIGN_CENTER)
-        end
-
-        draw.RoundedBox(8, 0, 0, w, h, Color(0, 0, 0, 150))
-
-        local money = GetPlayerMoney(targetPlayer)
-        draw.SimpleText("Money: $" .. string.Comma(money), "DermaDefault", 10, h - 80, Color(255, 255, 255), TEXT_ALIGN_LEFT)
-
-        local fps = 1 / RealFrameTime()
-        local fpsText = "FPS: " .. tostring(math.Round(fps, 0))
-        local fpsColor = fps <= 25 and Color(255, 0, 0) or Color(0, 255, 0)
-        draw.SimpleText(fpsText, "DermaDefault", 10, h - 50, fpsColor, TEXT_ALIGN_LEFT)
-
-        local ping = "Ping: " .. tostring(targetPlayer:Ping())
-        local pingColor = targetPlayer:Ping() > 90 and Color(255, 0, 0) or Color(0, 255, 0)
-        draw.SimpleText(ping, "DermaDefault", 10, h - 30, pingColor, TEXT_ALIGN_LEFT)
-    end
-
-    local giveMoneyButton = vgui.Create("DButton", frame)
-    giveMoneyButton:SetText("Give Money")
-    giveMoneyButton:SetSize(160, 30)
-    giveMoneyButton:SetPos(10, 40)
-    giveMoneyButton:SetTextColor(Color(255, 255, 255))
-    giveMoneyButton.Paint = function(self, w, h)
-        local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-        draw.RoundedBox(8, 0, 0, w, h, color)
-    end
-    giveMoneyButton.DoClick = function()
-        local trace = LocalPlayer():GetEyeTrace()
-        if IsValid(trace.Entity) and trace.Entity:IsPlayer() then
-            local amountMenu = vgui.Create("DFrame")
-            amountMenu:SetSize(180, 120)
-            amountMenu:SetTitle("")
-            amountMenu:Center()
-            amountMenu:MakePopup()
-
-            amountMenu.Paint = function(self, w, h)
-                draw.RoundedBox(8, 0, 0, w, h, Color(0, 0, 0, 150))
-            end
-
-            local amountEntry = vgui.Create("DTextEntry", amountMenu)
-            amountEntry:SetSize(160, 30)
-            amountEntry:SetPos(10, 40)
-            amountEntry:SetText("100")
-
-            local confirmButton = vgui.Create("DButton", amountMenu)
-            confirmButton:SetText("Confirm")
-            confirmButton:SetSize(160, 30)
-            confirmButton:SetPos(10, 80)
-            confirmButton.Paint = function(self, w, h)
-                local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-                draw.RoundedBox(8, 0, 0, w, h, color)
-            end
-            confirmButton.DoClick = function()
-                local amount = tonumber(amountEntry:GetValue())
-                if amount then
-                    LocalPlayer():ConCommand("say /give " .. amount)
-                end
-                amountMenu:Close()
-                if IsValid(InteractionMenu) then
-                    InteractionMenu:SetPos(-1000, -1000)
-                end
-                gui.EnableScreenClicker(false)
-            end
-        end
-    end
-
-    local mugButton = vgui.Create("DButton", frame)
-    mugButton:SetText("Mug")
-    mugButton:SetSize(160, 30)
-    mugButton:SetPos(10, 90)
-    mugButton:SetTextColor(Color(255, 255, 255))
-    mugButton.Paint = function(self, w, h)
-        local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-        draw.RoundedBox(8, 0, 0, w, h, color)
-    end
-    mugButton.DoClick = function()
-        local mugMenu = vgui.Create("DFrame")
-        mugMenu:SetSize(180, 200)
-        mugMenu:Center()
-        mugMenu:MakePopup()
-        mugMenu:SetTitle("Mug Menu")
-        mugMenu:SetDraggable(false)
-
-        mugMenu.Paint = function(self, w, h)
-            draw.RoundedBox(8, 0, 0, w, h, Color(0, 0, 0, 150))
-        end
-        --MUGAMOUNT CHANGE IT IF YOU WOULD LIKE--
-        local mugAmounts = {10000, 25000, 50000, 75000, 100000}
-        
-        for i, amount in ipairs(mugAmounts) do
-            local mugButton = vgui.Create("DButton", mugMenu)
-            mugButton:SetText("Mug $" .. string.format("%d", amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
-            mugButton:SetSize(160, 30)
-            mugButton:SetPos(10, 40 + (i - 1) * 40)
-            mugButton:SetTextColor(Color(255, 255, 255))
-            mugButton.Paint = function(self, w, h)
-                local color = self:IsHovered() and Color(60, 60, 60, 200) or Color(50, 50, 50, 200)
-                draw.RoundedBox(8, 0, 0, w, h, color)
-            end
-            mugButton.DoClick = function()
-                RunConsoleCommand("say", "/advert Mug " .. targetPlayer:Nick() .. " $" .. string.format("%d", amount):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", ""))
-                mugMenu:Close()
-            end
-        end
-    end
-
-    frame:SetMouseInputEnabled(true)
-
-    InteractionMenu = frame
-
-    hook.Add("Think", "UpdateInteractionMenuPosition", function()
-        if IsValid(targetPlayer) and IsValid(frame) then
-            local headPos = GetHeadBonePosition(targetPlayer)
-            local pos = headPos:ToScreen()
-        
-            local offsetX = -340  -- Adjusted menu left or right by removeing the -
-            local offsetY = 45    -- up or down --
-
-            frame:SetPos(pos.x + offsetX, pos.y + offsetY)
-
-            if LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) > 75 then
-                if IsValid(InteractionMenu) then
-                    InteractionMenu:Remove()
-                end
-                gui.EnableScreenClicker(false)
-            end
+            ply:SendLua("notification.AddLegacy('You cannot mug " .. target:Nick() .. " yet. Cooldown active.', NOTIFY_ERROR, 5)")
         end
     end)
 end
 
 if CLIENT then
+    local function GetChestBonePosition(targetPlayer)
+        local chestBone = targetPlayer:LookupBone("ValveBiped.Bip01_Spine2")
+        if chestBone then
+            return targetPlayer:GetBonePosition(chestBone)
+        else
+            return targetPlayer:EyePos() - Vector(0, 0, 10)
+        end
+    end
+
+    local InteractionMenu = nil
+    local warnedPlayers = {}
     local eLabel = nil
+    local mugCooldown = {1}
+
+    local function GetRankColor(rank)
+        local rainbowRanks = {"superadmin", "vip", "vip+", "vip++"}
+        if table.HasValue(rainbowRanks, string.lower(rank)) then
+            return HSVToColor((CurTime() * 50) % 360, 1, 1)
+        end
+        return Color(255, 255, 255)
+    end
+
+    local function CreateAmountMenu(title, prompt, maxAmount, onSubmit)
+        local frame = vgui.Create("DFrame")
+        frame:SetSize(300, 150)
+        frame:SetTitle("")
+        frame:ShowCloseButton(false)
+        frame:SetDraggable(false)
+        frame:Center()
+        frame:MakePopup()
+        frame.Paint = function(self, w, h)
+            draw.RoundedBox(8, 0, 0, w, h, Color(40, 40, 40, 230))
+            draw.SimpleText(title, "DermaLarge", w / 2, 20, Color(255, 255, 255), TEXT_ALIGN_CENTER)
+            draw.SimpleText(prompt, "DermaDefaultBold", w / 2, 50, Color(200, 200, 200), TEXT_ALIGN_CENTER)
+        end
+
+        local textEntry = vgui.Create("DTextEntry", frame)
+        textEntry:SetSize(280, 30)
+        textEntry:SetPos(10, 70)
+        textEntry:SetFont("DermaDefault")
+        textEntry:SetPlaceholderText("Enter amount here...")
+
+        local okButton = vgui.Create("DButton", frame)
+        okButton:SetSize(135, 30)
+        okButton:SetPos(10, 110)
+        okButton:SetText("OK")
+        okButton:SetFont("DermaDefaultBold")
+        okButton:SetTextColor(Color(255, 255, 255))
+        okButton.Paint = function(self, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, Color(0, 150, 0, 200))
+        end
+        okButton.DoClick = function()
+            local amount = tonumber(textEntry:GetValue())
+            if amount and amount > 0 and (not maxAmount or amount <= maxAmount) then
+                onSubmit(amount)
+                frame:Close()
+            else
+                chat.AddText(Color(255, 0, 0), "Invalid amount.")
+            end
+        end
+
+        local cancelButton = vgui.Create("DButton", frame)
+        cancelButton:SetSize(135, 30)
+        cancelButton:SetPos(155, 110)
+        cancelButton:SetText("Cancel")
+        cancelButton:SetFont("DermaDefaultBold")
+        cancelButton:SetTextColor(Color(255, 255, 255))
+        cancelButton.Paint = function(self, w, h)
+            draw.RoundedBox(6, 0, 0, w, h, Color(150, 0, 0, 200))
+        end
+        cancelButton.DoClick = function()
+            frame:Close()
+        end
+    end
+
+    local function CreateInteractionMenu(targetPlayer)
+        if IsValid(InteractionMenu) then
+            InteractionMenu:Remove()
+        end
+
+        gui.EnableScreenClicker(true)
+        if IsValid(eLabel) then eLabel:SetVisible(false) end
+
+        local frame = vgui.Create("DFrame")
+        frame:SetSize(200, 180)
+        frame:SetTitle("")
+        frame:ShowCloseButton(false)
+        frame:SetDraggable(false)
+        frame:SetAlpha(0)
+        frame:AlphaTo(255, 0.5, 0)
+        frame.Paint = function(self, w, h)
+            draw.RoundedBox(12, 0, 0, w, h, Color(0, 0, 0, 200))
+            surface.SetDrawColor(50, 50, 50, 200)
+            surface.DrawOutlinedRect(0, 0, w, h)
+
+            local rank = targetPlayer:GetUserGroup() or "Unknown Rank"
+            local rankColor = GetRankColor(rank)
+            draw.SimpleText(rank, "DermaLarge", w / 2, 10, rankColor, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+        end
+
+        local function CreateButton(parent, text, posY, callback)
+            local btn = vgui.Create("DButton", parent)
+            btn:SetText(text)
+            btn:SetSize(180, 35)
+            btn:SetPos(10, posY)
+            btn:SetFont("DermaDefaultBold")
+            btn:SetTextColor(Color(255, 255, 255))
+            btn.Paint = function(self, w, h)
+                local bgColor = self:IsHovered() and Color(50, 50, 50, 200) or Color(30, 30, 30, 200)
+                draw.RoundedBox(10, 0, 0, w, h, bgColor)
+            end
+            btn.DoClick = callback
+        end
+
+        CreateButton(frame, "Give Money", 50, function()
+            CreateAmountMenu(
+                "Give Money",
+                "Enter the amount to give:",
+                nil,
+                function(amount)
+                    LocalPlayer():ConCommand("say /give " .. amount)
+                end
+            )
+        end)
+
+        CreateButton(frame, "Mug", 100, function()
+            local playerId = targetPlayer:SteamID()
+            local currentTime = CurTime()
+
+            if mugCooldown[playerId] and currentTime < mugCooldown[playerId] then
+                local remainingTime = math.ceil(mugCooldown[playerId] - currentTime)
+                chat.AddText(Color(255, 0, 0), "You must wait " .. remainingTime .. " seconds before mugging again.")
+                return
+            end
+
+            if not warnedPlayers[targetPlayer] then
+                net.Start("WarnNotification")
+                net.WriteEntity(targetPlayer)
+                net.SendToServer()
+                warnedPlayers[targetPlayer] = true
+            else
+                CreateAmountMenu(
+                    "Mugging Amount",
+                    "Enter the amount to mug (Max: $15,000):",
+                    15000,
+                    function(amount)
+                        net.Start("MugNotification")
+                        net.WriteEntity(targetPlayer)
+                        net.WriteInt(amount, 32)
+                        net.SendToServer()
+
+                        --cooldown .
+                        mugCooldown[playerId] = currentTime + 135
+                    end
+                )
+            end
+        end)
+
+        hook.Add("Think", "UpdateInteractionMenuPosition", function()
+            if IsValid(targetPlayer) and IsValid(frame) then
+                local chestPos = GetChestBonePosition(targetPlayer)
+                local pos = chestPos:ToScreen()
+                frame:SetPos(pos.x - frame:GetWide() - 200, pos.y - 180) -- Locked to the left, with adjusted offsets.
+
+                if LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) > 75 then
+                    frame:AlphaTo(0, 0.5, 0, function()
+                        frame:Remove()
+                    end)
+                    gui.EnableScreenClicker(false)
+                    hook.Remove("Think", "UpdateInteractionMenuPosition")
+                end
+            end
+        end)
+
+        InteractionMenu = frame
+    end
 
     hook.Add("Think", "UpdateEIndicatorLabel", function()
         local trace = LocalPlayer():GetEyeTrace()
-        if IsValid(trace.Entity) and trace.Entity:IsPlayer() then
+        if IsValid(trace.Entity) and trace.Entity:IsPlayer() and not IsValid(InteractionMenu) then
             local targetPlayer = trace.Entity
             if not IsValid(eLabel) then
                 eLabel = vgui.Create("DLabel")
-                eLabel:SetText("E")
-                eLabel:SetFont("DermaLarge")
+                eLabel:SetText("Press E")
+                eLabel:SetFont("DermaDefaultBold")
                 eLabel:SetColor(Color(255, 255, 255))
                 eLabel:SizeToContents()
-                eLabel.DoClick = function(self)
-                    self:SetVisible(false)
-                end
             end
 
-            local headPos = GetHeadBonePosition(targetPlayer)
-            local pos = headPos:ToScreen()
+            local chestPos = GetChestBonePosition(targetPlayer)
+            local pos = chestPos:ToScreen()
 
-            local labelX = pos.x - eLabel:GetWide() / 2
-            local labelY = pos.y - -190
-
-            if LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) <= 75 then
-                eLabel:SetPos(labelX, labelY)
-                eLabel:SetVisible(true)
-            else
-                eLabel:SetVisible(false)
-            end
-        else
-            if IsValid(eLabel) then
-                eLabel:SetVisible(false)
-            end
+            eLabel:SetPos(pos.x - eLabel:GetWide() / 2, pos.y - 20)
+            eLabel:SetVisible(LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) <= 75)
+        elseif IsValid(eLabel) then
+            eLabel:SetVisible(false)
         end
     end)
 
-    local InteractionMenuOpen = false
-
-    local function IsPlayerInRangeAndLookingAt(ply, targetPlayer)
-        if IsValid(targetPlayer) then
-            local trace = ply:GetEyeTrace()
-            return trace.Entity == targetPlayer and ply:GetPos():Distance(targetPlayer:GetPos()) <= 75
-        end
-        return false
-    end
-
     hook.Add("KeyPress", "OpenInteractionMenu", function(ply, key)
-        if key == IN_USE and not InteractionMenuOpen then
-            
-            local maxDistance = 75 -- Define the maximum distance for opening the menu --
-            for _, ent in ipairs(ents.FindInSphere(ply:GetPos(), maxDistance)) do
-                if IsValid(ent) and ent:IsPlayer() and ent ~= ply and ent:Alive() then
-                    if IsPlayerInRangeAndLookingAt(ply, ent) then
-                        CreateInteractionMenu(ent)
-                        InteractionMenuOpen = true
-                        break
-                    end
-                end
+        if key == IN_USE then
+            local trace = ply:GetEyeTrace()
+            if IsValid(trace.Entity) and trace.Entity:IsPlayer() and ply:GetPos():Distance(trace.Entity:GetPos()) <= 75 then
+                CreateInteractionMenu(trace.Entity)
             end
         end
     end)
 
     hook.Add("KeyRelease", "CloseInteractionMenu", function(ply, key)
-        if key == IN_USE then
-            if IsValid(InteractionMenu) then
+        if key == IN_USE and IsValid(InteractionMenu) then
+            InteractionMenu:AlphaTo(0, 0.5, 0, function()
                 InteractionMenu:Remove()
-                gui.EnableScreenClicker(false)
-            end
-            InteractionMenuOpen = false
+            end)
+            gui.EnableScreenClicker(false)
         end
     end)
 end
