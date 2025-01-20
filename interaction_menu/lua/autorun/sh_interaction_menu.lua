@@ -4,7 +4,7 @@ if SERVER then
 
     local mugCooldowns = {}
     local MAX_MUG_AMOUNT = 15000
-    local DEFAULT_MUG_COOLDOWN = 300 -- Default mug cooldown in seconds
+    local DEFAULT_MUG_COOLDOWN = 300
 
     local function CanMug(target)
         return not mugCooldowns[target] or CurTime() > mugCooldowns[target]
@@ -25,7 +25,7 @@ if SERVER then
     net.Receive("MugNotification", function(len, ply)
         local target = net.ReadEntity()
         local amount = net.ReadInt(32)
-        local cooldown = net.ReadInt(32) -- Custom cooldown
+        local cooldown = net.ReadInt(32)
 
         if IsValid(target) and target:IsPlayer() and CanMug(target) then
             if amount > MAX_MUG_AMOUNT then
@@ -201,8 +201,8 @@ if CLIENT then
                         net.WriteInt(amount, 32)
                         net.SendToServer()
 
-                        --cooldown .
-                        mugCooldown[playerId] = currentTime + 135
+                        
+                        mugCooldown[playerId] = currentTime + 135 --cooldown .
                     end
                 )
             end
