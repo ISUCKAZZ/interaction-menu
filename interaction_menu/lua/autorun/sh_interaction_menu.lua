@@ -1,6 +1,8 @@
 if SERVER then
     util.AddNetworkString("MugNotification")
     util.AddNetworkString("WarnNotification")
+    util.AddNetworkString("RequestPlayerStatus")
+    util.AddNetworkString("SendPlayerStatus")
 
     local mugCooldowns = {}
     local MAX_MUG_AMOUNT = 15000
@@ -47,8 +49,26 @@ if SERVER then
             ply:SendLua("notification.AddLegacy('You cannot mug " .. target:Nick() .. " yet. Cooldown active.', NOTIFY_ERROR, 5)")
         end
     end)
-end
 
+    --  DONT WORK YET
+    net.Receive("RequestPlayerStatus", function(len, ply)
+        local target = net.ReadEntity()
+
+        if IsValid(target) and target:IsPlayer() then
+            -- Example logic for checking warrant and gun license status (replace with actual implementation)
+            local hasWarrant = target:getDarkRPVar("warranted") or false -- Replace with your warrant logic
+            local hasGunLicense = target:getDarkRPVar("HasGunlicense") or false -- Replace with your gun license logic
+
+            -- Send the status back to the client
+            net.Start("SendPlayerStatus")
+            net.WriteEntity(target)
+            net.WriteBool(hasWarrant)
+            net.WriteBool(hasGunLicense)
+            net.Send(ply)
+        end
+    end)
+end
+-- DONT WORK YET
 if CLIENT then
     local function GetChestBonePosition(targetPlayer)
         local chestBone = targetPlayer:LookupBone("ValveBiped.Bip01_Spine2")
@@ -63,6 +83,12 @@ if CLIENT then
     local warnedPlayers = {}
     local eLabel = nil
     local mugCooldown = {1}
+    local IsAmountMenuOpen = false 
+
+    local targetPlayerStatus = {
+        warrant = false,
+        gunLicense = false
+    }
 
     local function GetRankColor(rank)
         local rainbowRanks = {"superadmin", "vip", "vip+", "vip++"}
@@ -73,6 +99,9 @@ if CLIENT then
     end
 
     local function CreateAmountMenu(title, prompt, maxAmount, onSubmit)
+        if IsAmountMenuOpen then return end 
+        IsAmountMenuOpen = true 
+
         local frame = vgui.Create("DFrame")
         frame:SetSize(300, 150)
         frame:SetTitle("")
@@ -122,6 +151,10 @@ if CLIENT then
         end
         cancelButton.DoClick = function()
             frame:Close()
+        end
+
+        frame.OnClose = function()
+            IsAmountMenuOpen = false 
         end
     end
 
@@ -201,18 +234,28 @@ if CLIENT then
                         net.WriteInt(amount, 32)
                         net.SendToServer()
 
-                        
-                        mugCooldown[playerId] = currentTime + 135 --cooldown .
+                        mugCooldown[playerId] = currentTime + 135 -- Custom cooldown
                     end
                 )
             end
         end)
+-- DONT WORK YET
+        -- Add warrant and gun license icons 
+        local warrantIcon = vgui.Create("DImage", frame)
+        warrantIcon:SetSize(16, 16)
+        warrantIcon:SetPos(10, 145)
+        warrantIcon:SetImage(targetPlayerStatus.warrant and "icon16/tick.png" or "icon16/cancel.png")
+
+        local licenseIcon = vgui.Create("DImage", frame)
+        licenseIcon:SetSize(16, 16)
+        licenseIcon:SetPos(30, 145)
+        licenseIcon:SetImage(targetPlayerStatus.gunLicense and "icon16/star.png" or "icon16/cross.png")
 
         hook.Add("Think", "UpdateInteractionMenuPosition", function()
             if IsValid(targetPlayer) and IsValid(frame) then
                 local chestPos = GetChestBonePosition(targetPlayer)
                 local pos = chestPos:ToScreen()
-                frame:SetPos(pos.x - frame:GetWide() - 200, pos.y - 180) -- Locked to the left, with adjusted offsets.
+                frame:SetPos(pos.x - frame:GetWide() - 200, pos.y - 180)
 
                 if LocalPlayer():GetPos():Distance(targetPlayer:GetPos()) > 75 then
                     frame:AlphaTo(0, 0.5, 0, function()
@@ -225,8 +268,13 @@ if CLIENT then
         end)
 
         InteractionMenu = frame
-    end
 
+        -- Request warrant and gun license info from the server
+        net.Start("RequestPlayerStatus")
+        net.WriteEntity(targetPlayer)
+        net.SendToServer()
+    end
+-- DONT WORK YET
     hook.Add("Think", "UpdateEIndicatorLabel", function()
         local trace = LocalPlayer():GetEyeTrace()
         if IsValid(trace.Entity) and trace.Entity:IsPlayer() and not IsValid(InteractionMenu) then
