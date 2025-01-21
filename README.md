@@ -5,3 +5,4 @@
 
 ### just a work in progress 
 
+Move interaction_menu to /garrysmod/addons/ and it will do its own thing
