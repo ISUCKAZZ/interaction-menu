@@ -28,47 +28,50 @@ if SERVER then
         local target = net.ReadEntity()
         local amount = net.ReadInt(32)
         local cooldown = net.ReadInt(32)
-
-        if IsValid(target) and target:IsPlayer() and CanMug(target) then
-            if amount > MAX_MUG_AMOUNT then
-                ply:SendLua("notification.AddLegacy('You cannot mug more than $" .. MAX_MUG_AMOUNT .. ".', NOTIFY_ERROR, 5)")
-                return
-            end
-
-            if target:canAfford(amount) then
-                target:addMoney(-amount)
-                ply:addMoney(amount)
-                SetMugCooldown(target, cooldown)
-
-                target:SendLua("notification.AddLegacy('You were mugged by " .. ply:Nick() .. " for $" .. amount .. "!', NOTIFY_ERROR, 5)")
-                ply:SendLua("notification.AddLegacy('You successfully mugged " .. target:Nick() .. " for $" .. amount .. "!', NOTIFY_GENERIC, 5)")
+        local MAX_DISTANCE = 75 -- Define the max distance allowed for mugging
+    
+        
+        if IsValid(target) and target:IsPlayer() and ply:GetPos():Distance(target:GetPos()) <= MAX_DISTANCE then
+            if CanMug(target) then
+                if amount > MAX_MUG_AMOUNT then
+                    ply:SendLua("notification.AddLegacy('You cannot mug more than $" .. MAX_MUG_AMOUNT .. ".', NOTIFY_ERROR, 5)")
+                    return
+                end
+    
+                if target:canAfford(amount) then
+                    target:addMoney(-amount)
+                    ply:addMoney(amount)
+                    SetMugCooldown(target, cooldown)
+    
+                    target:SendLua("notification.AddLegacy('You were mugged by " .. ply:Nick() .. " for $" .. amount .. "!', NOTIFY_ERROR, 5)")
+                    ply:SendLua("notification.AddLegacy('You successfully mugged " .. target:Nick() .. " for $" .. amount .. "!', NOTIFY_GENERIC, 5)")
+                else
+                    ply:SendLua("notification.AddLegacy('" .. target:Nick() .. " cannot afford to pay your mugging demand.', NOTIFY_ERROR, 5)")
+                end
             else
-                ply:SendLua("notification.AddLegacy('" .. target:Nick() .. " cannot afford to pay your mugging demand.', NOTIFY_ERROR, 5)")
+                ply:SendLua("notification.AddLegacy('You cannot mug " .. target:Nick() .. " yet. Cooldown active.', NOTIFY_ERROR, 5)")
             end
         else
-            ply:SendLua("notification.AddLegacy('You cannot mug " .. target:Nick() .. " yet. Cooldown active.', NOTIFY_ERROR, 5)")
+            ply:SendLua("notification.AddLegacy('You are too far away to mug " .. (IsValid(target) and target:Nick() or "this player") .. ".', NOTIFY_ERROR, 5)")
         end
     end)
-
-    --  DONT WORK YET
+    
     net.Receive("RequestPlayerStatus", function(len, ply)
         local target = net.ReadEntity()
 
         if IsValid(target) and target:IsPlayer() then
-            -- Example logic for checking warrant and gun license status (replace with actual implementation)
-            local hasWarrant = target:getDarkRPVar("warranted") or false -- Replace with your warrant logic
-            local hasGunLicense = target:getDarkRPVar("HasGunlicense") or false -- Replace with your gun license logic
+            local hasGunLicense = target:getDarkRPVar("HasGunlicense") or false
+            local gunLicenseGiver = target:getDarkRPVar("GunLicenseGiver") or "Unknown"
 
-            -- Send the status back to the client
             net.Start("SendPlayerStatus")
             net.WriteEntity(target)
-            net.WriteBool(hasWarrant)
             net.WriteBool(hasGunLicense)
+            net.WriteString(gunLicenseGiver)
             net.Send(ply)
         end
     end)
 end
--- DONT WORK YET
+
 if CLIENT then
     local function GetChestBonePosition(targetPlayer)
         local chestBone = targetPlayer:LookupBone("ValveBiped.Bip01_Spine2")
@@ -82,13 +85,24 @@ if CLIENT then
     local InteractionMenu = nil
     local warnedPlayers = {}
     local eLabel = nil
-    local mugCooldown = {1}
+    local mugCooldown = {}
     local IsAmountMenuOpen = false 
 
     local targetPlayerStatus = {
-        warrant = false,
-        gunLicense = false
+        gunLicense = false,
+        gunLicenseGiver = "Unknown"
     }
+
+    net.Receive("SendPlayerStatus", function()
+        local target = net.ReadEntity()
+        local hasGunLicense = net.ReadBool()
+        local gunLicenseGiver = net.ReadString()
+
+        if IsValid(target) then
+            targetPlayerStatus.gunLicense = hasGunLicense
+            targetPlayerStatus.gunLicenseGiver = gunLicenseGiver
+        end
+    end)
 
     local function GetRankColor(rank)
         local rainbowRanks = {"superadmin", "vip", "vip+", "vip++"}
@@ -166,6 +180,11 @@ if CLIENT then
         gui.EnableScreenClicker(true)
         if IsValid(eLabel) then eLabel:SetVisible(false) end
 
+        
+        net.Start("RequestPlayerStatus")
+        net.WriteEntity(targetPlayer)
+        net.SendToServer()
+
         local frame = vgui.Create("DFrame")
         frame:SetSize(200, 180)
         frame:SetTitle("")
@@ -183,6 +202,7 @@ if CLIENT then
             draw.SimpleText(rank, "DermaLarge", w / 2, 10, rankColor, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
         end
 
+        
         local function CreateButton(parent, text, posY, callback)
             local btn = vgui.Create("DButton", parent)
             btn:SetText(text)
@@ -239,17 +259,37 @@ if CLIENT then
                 )
             end
         end)
--- DONT WORK YET
-        -- Add warrant and gun license icons 
-        local warrantIcon = vgui.Create("DImage", frame)
-        warrantIcon:SetSize(16, 16)
-        warrantIcon:SetPos(10, 145)
-        warrantIcon:SetImage(targetPlayerStatus.warrant and "icon16/tick.png" or "icon16/cancel.png")
 
+      
         local licenseIcon = vgui.Create("DImage", frame)
         licenseIcon:SetSize(16, 16)
-        licenseIcon:SetPos(30, 145)
-        licenseIcon:SetImage(targetPlayerStatus.gunLicense and "icon16/star.png" or "icon16/cross.png")
+        licenseIcon:SetPos(10, 145)
+
+        if targetPlayerStatus.gunLicense then
+            licenseIcon:SetImage("icon16/gun.png")
+            licenseIcon:SetToolTip("Gun License given by: " .. targetPlayerStatus.gunLicenseGiver)
+        else
+            licenseIcon:SetImage("icon16/cross.png")
+            licenseIcon:SetToolTip("No Gun License")
+        end
+
+       
+        net.Receive("SendPlayerStatus", function()
+            local receivedTarget = net.ReadEntity()
+            if receivedTarget == targetPlayer then
+                targetPlayerStatus.gunLicense = net.ReadBool()
+                targetPlayerStatus.gunLicenseGiver = net.ReadString()
+
+                
+                if targetPlayerStatus.gunLicense then
+                    licenseIcon:SetImage("icon16/gun.png")
+                    licenseIcon:SetToolTip("Gun License given by: " .. targetPlayerStatus.gunLicenseGiver)
+                else
+                    licenseIcon:SetImage("icon16/cross.png")
+                    licenseIcon:SetToolTip("No Gun License")
+                end
+            end
+        end)
 
         hook.Add("Think", "UpdateInteractionMenuPosition", function()
             if IsValid(targetPlayer) and IsValid(frame) then
@@ -268,13 +308,8 @@ if CLIENT then
         end)
 
         InteractionMenu = frame
-
-        -- Request warrant and gun license info from the server
-        net.Start("RequestPlayerStatus")
-        net.WriteEntity(targetPlayer)
-        net.SendToServer()
     end
--- DONT WORK YET
+
     hook.Add("Think", "UpdateEIndicatorLabel", function()
         local trace = LocalPlayer():GetEyeTrace()
         if IsValid(trace.Entity) and trace.Entity:IsPlayer() and not IsValid(InteractionMenu) then
