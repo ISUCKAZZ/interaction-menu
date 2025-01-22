@@ -10,6 +10,7 @@
 ![Screenshot 2025-01-22 173947](https://github.com/user-attachments/assets/76724a74-40d1-4f04-8841-d5d82f79e4eb)
 ![Screenshot 2025-01-22 174054](https://github.com/user-attachments/assets/e09cab98-f028-45cc-b25c-27aeb2dc7969)
 ![Screenshot 2025-01-19 200015](https://github.com/user-attachments/assets/075dff0c-d870-4bab-8bac-818cf01e7188)
+![image](https://github.com/user-attachments/assets/57501035-fae9-41e0-baf1-5ae6219b0172)
 
 ### just a work in progress 
 
