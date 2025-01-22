@@ -11,6 +11,6 @@
 ![Screenshot 2025-01-22 174054](https://github.com/user-attachments/assets/e09cab98-f028-45cc-b25c-27aeb2dc7969)
 ![Screenshot 2025-01-19 200015](https://github.com/user-attachments/assets/075dff0c-d870-4bab-8bac-818cf01e7188)
 
-### just a work in progress 
+### JUST A WORK IN PROGRESS
 
 Move interaction_menu to /garrysmod/addons/ and it will do its own thing
