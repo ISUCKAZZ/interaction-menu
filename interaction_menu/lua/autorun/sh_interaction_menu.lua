@@ -1,8 +1,33 @@
+/*
+#___  ________   _________  _______   ________  ________  ________ _________  ___  ________  ________                  _____ ______   _______   ________   ___  ___     
+#|\  \|\   ___  \|\___   ___\\  ___ \ |\   __  \|\   __  \|\   ____\\___   ___\\  \|\   __  \|\   ___  \               |\   _ \  _   \|\  ___ \ |\   ___  \|\  \|\  \    
+#\ \  \ \  \\ \  \|___ \  \_\ \   __/|\ \  \|\  \ \  \|\  \ \  \___\|___ \  \_\ \  \ \  \|\  \ \  \\ \  \  ____________\ \  \\\__\ \  \ \   __/|\ \  \\ \  \ \  \\\  \   
+# \ \  \ \  \\ \  \   \ \  \ \ \  \_|/_\ \   _  _\ \   __  \ \  \       \ \  \ \ \  \ \  \\\  \ \  \\ \  \|\____________\ \  \\|__| \  \ \  \_|/_\ \  \\ \  \ \  \\\  \  
+#  \ \  \ \  \\ \  \   \ \  \ \ \  \_|\ \ \  \\  \\ \  \ \  \ \  \____   \ \  \ \ \  \ \  \\\  \ \  \\ \  \|____________|\ \  \    \ \  \ \  \_|\ \ \  \\ \  \ \  \\\  \ 
+#   \ \__\ \__\\ \__\   \ \__\ \ \_______\ \__\\ _\\ \__\ \__\ \_______\  \ \__\ \ \__\ \_______\ \__\\ \__\              \ \__\    \ \__\ \_______\ \__\\ \__\ \_______\
+#    \|__|\|__| \|__|    \|__|  \|_______|\|__|\|__|\|__|\|__|\|_______|   \|__|  \|__|\|_______|\|__| \|__|               \|__|     \|__|\|_______|\|__| \|__|\|_______|
+#                                                                                                                                                                        
+# Interaction Menu Code (Beta) V 0.03
+#
+# made by ISUCKAZZ 
+#
+*/
+
 if SERVER then
-    util.AddNetworkString("MugNotification")
-    util.AddNetworkString("WarnNotification")
-    util.AddNetworkString("RequestPlayerStatus")
-    util.AddNetworkString("SendPlayerStatus")
+    -- Debugging Network Strings Registration
+    print("[SERVER] Registering network strings...")
+
+    local networkStrings = {
+        "MugNotification",
+        "WarnNotification",
+        "RequestPlayerStatus",
+        "SendPlayerStatus"
+    }
+
+    for _, msg in ipairs(networkStrings) do
+        util.AddNetworkString(msg)
+        print("[SERVER] Registered network string:", msg)
+    end
 
     local mugCooldowns = {}
     local MAX_MUG_AMOUNT = 15000
@@ -29,20 +54,19 @@ if SERVER then
         local amount = net.ReadInt(32)
         local cooldown = net.ReadInt(32)
         local MAX_DISTANCE = 75 -- Define the max distance allowed for mugging
-    
-        
+
         if IsValid(target) and target:IsPlayer() and ply:GetPos():Distance(target:GetPos()) <= MAX_DISTANCE then
             if CanMug(target) then
                 if amount > MAX_MUG_AMOUNT then
                     ply:SendLua("notification.AddLegacy('You cannot mug more than $" .. MAX_MUG_AMOUNT .. ".', NOTIFY_ERROR, 5)")
                     return
                 end
-    
+
                 if target:canAfford(amount) then
                     target:addMoney(-amount)
                     ply:addMoney(amount)
                     SetMugCooldown(target, cooldown)
-    
+
                     target:SendLua("notification.AddLegacy('You were mugged by " .. ply:Nick() .. " for $" .. amount .. "!', NOTIFY_ERROR, 5)")
                     ply:SendLua("notification.AddLegacy('You successfully mugged " .. target:Nick() .. " for $" .. amount .. "!', NOTIFY_GENERIC, 5)")
                 else
@@ -55,7 +79,7 @@ if SERVER then
             ply:SendLua("notification.AddLegacy('You are too far away to mug " .. (IsValid(target) and target:Nick() or "this player") .. ".', NOTIFY_ERROR, 5)")
         end
     end)
-    
+
     net.Receive("RequestPlayerStatus", function(len, ply)
         local target = net.ReadEntity()
 
@@ -86,7 +110,7 @@ if CLIENT then
     local warnedPlayers = {}
     local eLabel = nil
     local mugCooldown = {}
-    local IsAmountMenuOpen = false 
+    local IsAmountMenuOpen = false
 
     local targetPlayerStatus = {
         gunLicense = false,
@@ -113,8 +137,8 @@ if CLIENT then
     end
 
     local function CreateAmountMenu(title, prompt, maxAmount, onSubmit)
-        if IsAmountMenuOpen then return end 
-        IsAmountMenuOpen = true 
+        if IsAmountMenuOpen then return end
+        IsAmountMenuOpen = true
 
         local frame = vgui.Create("DFrame")
         frame:SetSize(300, 150)
@@ -168,7 +192,7 @@ if CLIENT then
         end
 
         frame.OnClose = function()
-            IsAmountMenuOpen = false 
+            IsAmountMenuOpen = false
         end
     end
 
@@ -180,7 +204,6 @@ if CLIENT then
         gui.EnableScreenClicker(true)
         if IsValid(eLabel) then eLabel:SetVisible(false) end
 
-        
         net.Start("RequestPlayerStatus")
         net.WriteEntity(targetPlayer)
         net.SendToServer()
@@ -202,7 +225,6 @@ if CLIENT then
             draw.SimpleText(rank, "DermaLarge", w / 2, 10, rankColor, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
         end
 
-        
         local function CreateButton(parent, text, posY, callback)
             local btn = vgui.Create("DButton", parent)
             btn:SetText(text)
@@ -260,7 +282,6 @@ if CLIENT then
             end
         end)
 
-      
         local licenseIcon = vgui.Create("DImage", frame)
         licenseIcon:SetSize(16, 16)
         licenseIcon:SetPos(10, 145)
@@ -273,7 +294,6 @@ if CLIENT then
             licenseIcon:SetToolTip("No Gun License")
         end
 
-       
         net.Receive("SendPlayerStatus", function()
             local receivedTarget = net.ReadEntity()
             if receivedTarget == targetPlayer then
